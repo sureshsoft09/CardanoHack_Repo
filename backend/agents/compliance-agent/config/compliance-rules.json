@@ -1,0 +1,124 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-11-29T00:00:00.000Z",
+  "globalSettings": {
+    "defaultCurrency": "ADA",
+    "baseInvoiceAmount": 10,
+    "severityMultipliers": {
+      "low": 1,
+      "medium": 2,
+      "high": 5,
+      "critical": 10
+    }
+  },
+  "rules": [
+    {
+      "id": "TEMP_COLD_CHAIN",
+      "name": "Cold Chain Temperature Violation",
+      "description": "Temperature outside acceptable range for cold chain cargo",
+      "enabled": true,
+      "severity": "critical",
+      "category": "temperature",
+      "parameters": {
+        "tempThreshold": {
+          "min": -20,
+          "max": 5
+        }
+      },
+      "action": "invoice",
+      "invoiceAmount": 50
+    },
+    {
+      "id": "TEMP_AMBIENT",
+      "name": "Ambient Temperature Violation",
+      "description": "Temperature outside safe range for standard cargo",
+      "enabled": true,
+      "severity": "high",
+      "category": "temperature",
+      "parameters": {
+        "tempThreshold": {
+          "min": -10,
+          "max": 60
+        }
+      },
+      "action": "invoice",
+      "invoiceAmount": 25
+    },
+    {
+      "id": "LOCATION_DEVIATION",
+      "name": "Route Deviation",
+      "description": "Shipment deviated from planned route beyond acceptable threshold",
+      "enabled": true,
+      "severity": "medium",
+      "category": "location",
+      "parameters": {
+        "maxDeviationMeters": 5000
+      },
+      "action": "invoice",
+      "invoiceAmount": 15
+    },
+    {
+      "id": "DELIVERY_DELAY",
+      "name": "Delivery Delay",
+      "description": "Shipment arrival delayed beyond acceptable threshold",
+      "enabled": true,
+      "severity": "medium",
+      "category": "timing",
+      "parameters": {
+        "maxDelayMins": 60
+      },
+      "action": "alert"
+    },
+    {
+      "id": "ROUGH_HANDLING",
+      "name": "Rough Handling Detected",
+      "description": "Excessive vibration or shock detected indicating rough handling",
+      "enabled": true,
+      "severity": "high",
+      "category": "handling",
+      "parameters": {
+        "vibrationThreshold": 8,
+        "shockThreshold": 12
+      },
+      "action": "invoice",
+      "invoiceAmount": 30
+    },
+    {
+      "id": "HUMIDITY_EXCESS",
+      "name": "Excessive Humidity",
+      "description": "Humidity levels exceeded safe limits for cargo protection",
+      "enabled": true,
+      "severity": "medium",
+      "category": "temperature",
+      "parameters": {
+        "humidityThreshold": {
+          "max": 85
+        }
+      },
+      "action": "warn"
+    },
+    {
+      "id": "GEOFENCE_BREACH",
+      "name": "Geofence Boundary Violation",
+      "description": "Shipment has left the designated safe zone or route corridor",
+      "enabled": true,
+      "severity": "high",
+      "category": "location",
+      "parameters": {
+        "maxDeviationMeters": 2000
+      },
+      "action": "invoice",
+      "invoiceAmount": 40
+    },
+    {
+      "id": "BATTERY_CRITICAL",
+      "name": "Critical Battery Level",
+      "description": "IoT device battery critically low, risking data loss",
+      "enabled": true,
+      "severity": "medium",
+      "category": "security",
+      "parameters": {},
+      "action": "alert"
+    }
+  ]
+}

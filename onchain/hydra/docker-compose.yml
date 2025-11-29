@@ -1,0 +1,110 @@
+version: '3.8'
+
+# Docker Compose for Smart Freight Hydra Development Environment
+# Usage: docker-compose up -d
+
+services:
+  # Cardano node (required for Hydra)
+  cardano-node:
+    image: inputoutput/cardano-node:latest
+    container_name: cardano-node
+    networks:
+      - hydra-net
+    ports:
+      - "3001:3001"
+    volumes:
+      - cardano-data:/opt/cardano/data
+      - ./config:/opt/cardano/config:ro
+    command: [
+      "run",
+      "--config", "/opt/cardano/config/testnet-config.json",
+      "--topology", "/opt/cardano/config/testnet-topology.json", 
+      "--database-path", "/opt/cardano/data/db",
+      "--socket-path", "/opt/cardano/data/node.socket",
+      "--port", "3001"
+    ]
+    healthcheck:
+      test: ["CMD-SHELL", "cardano-cli query tip --testnet-magic 1097911063 --socket-path /opt/cardano/data/node.socket"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Settlement Agent Hydra node
+  hydra-settlement:
+    image: ghcr.io/input-output-hk/hydra-node:latest
+    container_name: hydra-settlement
+    networks:
+      - hydra-net
+    ports:
+      - "4001:4001"  # API port
+      - "5001:5001"  # P2P port
+    volumes:
+      - ./hydra-keys:/keys:ro
+      - cardano-data:/opt/cardano/data:ro
+    depends_on:
+      cardano-node:
+        condition: service_healthy
+    command: [
+      "--node-id", "settlement-agent",
+      "--port", "5001",
+      "--api-port", "4001", 
+      "--cardano-signing-key", "/keys/settlement.sk",
+      "--cardano-verification-key", "/keys/settlement.vk",
+      "--hydra-signing-key", "/keys/hydra-settlement.sk",
+      "--hydra-verification-key", "/keys/hydra-settlement.vk",
+      "--peer", "compliance-agent@hydra-compliance:5002",
+      "--cardano-node-socket", "/opt/cardano/data/node.socket",
+      "--testnet-magic", "1097911063"
+    ]
+    environment:
+      - HYDRA_LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4001/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Compliance Agent Hydra node  
+  hydra-compliance:
+    image: ghcr.io/input-output-hk/hydra-node:latest
+    container_name: hydra-compliance
+    networks:
+      - hydra-net
+    ports:
+      - "4002:4002"  # API port
+      - "5002:5002"  # P2P port
+    volumes:
+      - ./hydra-keys:/keys:ro
+      - cardano-data:/opt/cardano/data:ro
+    depends_on:
+      cardano-node:
+        condition: service_healthy
+    command: [
+      "--node-id", "compliance-agent",
+      "--port", "5002", 
+      "--api-port", "4002",
+      "--cardano-signing-key", "/keys/compliance.sk",
+      "--cardano-verification-key", "/keys/compliance.vk", 
+      "--hydra-signing-key", "/keys/hydra-compliance.sk",
+      "--hydra-verification-key", "/keys/hydra-compliance.vk",
+      "--peer", "settlement-agent@hydra-settlement:5001",
+      "--cardano-node-socket", "/opt/cardano/data/node.socket",
+      "--testnet-magic", "1097911063"
+    ]
+    environment:
+      - HYDRA_LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4002/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+# Networks
+networks:
+  hydra-net:
+    driver: bridge
+
+# Volumes  
+volumes:
+  cardano-data:
+    driver: local

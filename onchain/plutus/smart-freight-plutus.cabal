@@ -1,0 +1,89 @@
+cabal-version: 3.0
+name: smart-freight-plutus
+version: 1.0.0
+synopsis: Plutus smart contracts for Smart Freight Management System
+description: 
+    Plutus V2 validators for escrow, settlement, and compliance automation
+    in the Smart Freight Management System with Cardano integration.
+category: Blockchain
+author: Smart Freight Team
+maintainer: smart-freight@example.com
+license: MIT
+license-file: LICENSE
+build-type: Simple
+
+-- Source repository
+source-repository head
+  type: git
+  location: https://github.com/your-org/smart-freight-plutus
+
+common shared-properties
+  default-language: Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    OverloadedStrings
+    TypeApplications
+    ScopedTypeVariables
+    MultiParamTypeClasses
+    DataKinds
+    FlexibleContexts
+    TemplateHaskell
+    
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wno-missing-import-lists
+    -Wredundant-constraints
+    -Wmissing-export-lists
+
+library
+  import: shared-properties
+  
+  exposed-modules:
+    ShipmentEscrow
+    
+  build-depends:
+    base ^>= 4.14,
+    plutus-ledger-api ^>= 1.0.0,
+    plutus-tx ^>= 1.0.0,
+    plutus-tx-plugin ^>= 1.0.0,
+    serialise,
+    bytestring,
+    
+  hs-source-dirs: .
+
+executable write-validator
+  import: shared-properties
+  
+  main-is: WriteValidator.hs
+  
+  build-depends:
+    base ^>= 4.14,
+    smart-freight-plutus,
+    bytestring,
+    serialise
+    
+  hs-source-dirs: app
+
+-- Test suite for validator logic
+test-suite smart-freight-tests
+  import: shared-properties
+  
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  
+  other-modules:
+    ShipmentEscrowSpec
+    
+  build-depends:
+    base ^>= 4.14,
+    smart-freight-plutus,
+    plutus-ledger-api,
+    plutus-tx,
+    tasty,
+    tasty-hunit,
+    tasty-quickcheck
+    
+  hs-source-dirs: test

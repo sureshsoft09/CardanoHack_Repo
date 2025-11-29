@@ -1,0 +1,37 @@
+{
+  "name": "smart-freight-hydra",
+  "version": "1.0.0",
+  "description": "Hydra Layer 2 integration for Smart Freight Management System",
+  "main": "hydra-client.js",
+  "scripts": {
+    "start": "node hydra-client.js",
+    "demo": "node hydra-client.js",
+    "test": "node test-hydra-integration.js",
+    "docker:start": "./scripts/start-hydra-nodes.sh",
+    "docker:stop": "./scripts/stop-hydra-nodes.sh",
+    "docker:logs": "docker logs hydra-settlement && docker logs hydra-compliance"
+  },
+  "keywords": [
+    "hydra", 
+    "cardano", 
+    "layer2", 
+    "scaling", 
+    "smart-freight", 
+    "iot", 
+    "blockchain"
+  ],
+  "author": "Smart Freight Team",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "axios": "^1.6.2",
+    "crypto": "^1.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
