@@ -1,0 +1,56 @@
+# Compiled Haskell files
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+*.chi
+*.chs.h
+*.prof
+*.aux
+*.hp
+*.ps
+
+# Cabal files
+cabal.project.local
+cabal.project.local~
+.ghc.environment.*
+dist/
+dist-newstyle/
+
+# Stack files
+.stack-work/
+
+# Haddock documentation
+docs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Plutus specific
+*.plutus
+*.json
+plutus-playground-client/generated/
+plutus-playground-server/usecases/.stack-work/
+plutus-scb/generated/
+marlowe-playground-client/generated/
+marlowe-playground-server/contracts/.stack-work/
+web-ghc/generated/
+
+# Testing and temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+result
+result-*
+
+# Nix
+.direnv

@@ -5,7 +5,7 @@ import { EventEmitter } from 'events';
 import Joi from 'joi';
 import winston from 'winston';
 import dotenv from 'dotenv';
-import { TrackingAgent, Telemetry, DigitalTwin } from './TrackingAgent';
+import { TrackingAgent, Telemetry } from './TrackingAgent';
 
 // Load environment variables
 dotenv.config();
@@ -112,10 +112,10 @@ app.get('/digital-twin/:shipmentId', (req: Request, res: Response) => {
     });
   }
   
-  res.json(twin);
+  return res.json(twin);
 });
 
-app.get('/digital-twins', (req: Request, res: Response) => {
+app.get('/digital-twins', (_req: Request, res: Response) => {
   const twins = trackingAgent.getAllDigitalTwins();
   res.json({
     twins,
@@ -141,7 +141,7 @@ app.get('/digital-twin/:shipmentId/alerts', (req: Request, res: Response) => {
     trackingAgent.getActiveAlerts(shipmentId) : 
     twin.alerts;
     
-  res.json({
+  return res.json({
     shipmentId,
     alerts,
     count: alerts.length,
@@ -177,7 +177,7 @@ app.post('/digital-twin/:shipmentId/geofence', (req: Request, res: Response) => 
   
   trackingAgent.setGeofence(shipmentId, value);
   
-  res.status(201).json({
+  return res.status(201).json({
     message: 'Geofence set successfully',
     shipmentId,
     geofence: value,
@@ -199,7 +199,7 @@ app.patch('/digital-twin/:shipmentId/alert/:alertId/resolve', (req: Request, res
 });
 
 // Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   const digitalTwinsCount = trackingAgent.getAllDigitalTwins().length;
   const activeAlerts = trackingAgent.getAllDigitalTwins()
     .reduce((total, twin) => total + twin.alerts.filter(a => !a.resolved).length, 0);
@@ -306,7 +306,7 @@ app.post('/telemetry', async (req: Request, res: Response, next: NextFunction) =
     }
 
     // Respond with success
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Telemetry data processed successfully',
       shipmentId: telemetryData.shipmentId,
       deviceId: telemetryData.deviceId,
@@ -315,12 +315,12 @@ app.post('/telemetry', async (req: Request, res: Response, next: NextFunction) =
     });
 
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
 // Global error handler
-app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error('Unhandled error', {
     error: error.message,
     stack: error.stack,

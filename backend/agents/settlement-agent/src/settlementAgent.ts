@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import axios from 'axios';
+// import axios from 'axios'; // Commented out until used
 import winston from 'winston';
 import { v4 as uuidv4 } from 'uuid';
-import WebSocket from 'ws';
+// import WebSocket from 'ws'; // Commented out until used
 import * as crypto from 'crypto';
 
 // Types and Interfaces
@@ -105,7 +105,7 @@ export class SettlementAgent extends EventEmitter {
   private settlements: Map<string, DecisionLog>;
   private hydraClient: HydraClientWrapper;
   private cardanoClient: CardanoClientWrapper;
-  private isActive: boolean;
+  // private _isActive: boolean; // Commented out until used
 
   // Configuration
   private complianceAgentAddress: string;
@@ -129,7 +129,7 @@ export class SettlementAgent extends EventEmitter {
 
     this.hydraHeads = new Map();
     this.settlements = new Map();
-    this.isActive = false;
+    // this._isActive = false; // Commented out until used
 
     // Initialize logger
     this.logger = winston.createLogger({
@@ -172,7 +172,7 @@ export class SettlementAgent extends EventEmitter {
       // Check for existing Hydra heads
       await this.discoverExistingHydraHeads();
 
-      this.isActive = true;
+      // this._isActive = true; // Commented out until used
       this.logger.info('Settlement Agent initialized successfully');
 
     } catch (error) {
@@ -570,7 +570,7 @@ export class SettlementAgent extends EventEmitter {
   }
 
   public async stop(): Promise<void> {
-    this.isActive = false;
+    // this._isActive = false; // Commented out until used
     
     // Close all open Hydra heads
     for (const head of this.hydraHeads.values()) {
@@ -587,7 +587,7 @@ export class SettlementAgent extends EventEmitter {
 class HydraClientWrapper {
   private config: HydraClientConfig;
   private logger: winston.Logger;
-  private ws?: WebSocket;
+  // private _ws?: WebSocket; // Removed unused property
 
   constructor(config: HydraClientConfig, logger: winston.Logger) {
     this.config = config;
@@ -632,11 +632,7 @@ class HydraClientWrapper {
   // async listHeads(): Promise<any[]> { }
   // async closeHead(headId: string): Promise<void> { }
 
-  private handleHydraMessage(message: any): void {
-    // TODO: Handle hydra-node WebSocket messages
-    // Examples: HeadIsOpen, TxValid, TxInvalid, HeadIsClosed, etc.
-    this.logger.debug('Received Hydra message', { message });
-  }
+  // Removed unused _handleHydraMessage method
 }
 
 // Cardano Client Wrapper - abstracts cardano-cli/Blockfrost interactions

@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Hydra node data
+hydra-node-data/
+hydra-state/
+
+# Cardano node files
+cardano-node.socket
+cardano-node/
+node.socket
+
+# Keys and certificates (keep examples, exclude actual keys)
+*.sk
+*.vk
+*.cert
+*.skey
+*.vkey
+!example.*
+
+# Docker volumes
+volumes/
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Temporary files
+tmp/
+temp/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/

@@ -161,9 +161,9 @@ export class TrackingAgent extends EventEmitter {
       // Update existing twin
       twin.lastUpdated = new Date();
       twin.currentLocation = telemetry.location;
-      twin.currentSensors = telemetry.sensors;
-      twin.batteryLevel = telemetry.battery;
-      twin.signalInfo = telemetry.signal;
+      twin.currentSensors = telemetry.sensors || {};
+      twin.batteryLevel = telemetry.battery || 0;
+      twin.signalInfo = telemetry.signal || {};
 
       // Add to history and maintain size limit
       twin.telemetryHistory.push(telemetry);
@@ -215,9 +215,9 @@ export class TrackingAgent extends EventEmitter {
       lastUpdated: new Date(),
       currentLocation: telemetry.location,
       telemetryHistory: [telemetry],
-      currentSensors: telemetry.sensors,
-      batteryLevel: telemetry.battery,
-      signalInfo: telemetry.signal,
+      currentSensors: telemetry.sensors || {},
+      batteryLevel: telemetry.battery || 0,
+      signalInfo: telemetry.signal || {},
       alerts: [],
       thresholds: { ...DEFAULT_THRESHOLDS }
     };
@@ -341,7 +341,7 @@ export class TrackingAgent extends EventEmitter {
       type,
       severity,
       message,
-      value,
+      value: value || 0,
       threshold,
       timestamp: new Date(),
       resolved: false
@@ -392,8 +392,8 @@ export class TrackingAgent extends EventEmitter {
     return degrees * (Math.PI / 180);
   }
 
-  private handleAlert(shipmentId: string, type: string, value: number, threshold: string): void {
-    const twin = this.digitalTwins.get(shipmentId);
+  private handleAlert(_shipmentId: string, _type: string, _value: number, _threshold: string): void {
+    const twin = this.digitalTwins.get(_shipmentId);
     if (twin) {
       // This method can be used to sync with existing alert system
       // The main rule checking is done in checkRules method

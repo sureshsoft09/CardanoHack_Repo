@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import axios, { AxiosResponse } from 'axios';
+// import axios, { AxiosResponse } from 'axios'; // Commented out until used
 import winston from 'winston';
 import { v4 as uuidv4 } from 'uuid';
 import Joi from 'joi';
@@ -610,7 +610,7 @@ export class ComplianceAgent extends EventEmitter {
   }
 
   // Generate evidence hash for blockchain verification
-  private generateEvidenceHash(evidence: any): string {
+  private generateEvidenceHash(_evidence: any): string {
     // TODO: Implement proper cryptographic hashing
     // For now, return a mock hash
     return `hash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -703,7 +703,7 @@ export class ComplianceAgent extends EventEmitter {
   private async callMasumiPaymentAPI(
     endpoint: string, 
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', 
-    data?: any
+    _data?: any
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
       this.logger.debug('Calling Masumi Payment API', {
