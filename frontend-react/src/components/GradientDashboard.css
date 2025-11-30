@@ -1,5 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* Leaflet Map Styles */
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
+}
+
+.map-container {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  animation: fadeIn 0.8s ease;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.leaflet-popup-content {
+  margin: 12px;
+  font-family: 'Inter', sans-serif;
+}
+
 .gradient-dashboard {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -202,6 +226,12 @@
 .shipment-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+.shipment-card.selected {
+  border: 3px solid #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2), 0 20px 40px rgba(0,0,0,0.15);
+  transform: translateY(-6px);
 }
 
 .shipment-header {

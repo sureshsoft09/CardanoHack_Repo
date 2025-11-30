@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Line, Doughnut } from 'react-chartjs-2';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,6 +16,14 @@ import {
   Filler
 } from 'chart.js';
 import './GradientDashboard.css';
+
+// Fix Leaflet default icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
 
 // Register Chart.js components
 ChartJS.register(
@@ -30,6 +41,75 @@ ChartJS.register(
 const GradientDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [paymentProcessing, setPaymentProcessing] = useState({});
+  const [selectedShipment, setSelectedShipment] = useState(null);
+
+  // Custom truck icon for in-transit shipments
+  const truckIcon = new L.Icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="1" y="3" width="15" height="13" rx="2" fill="#667eea" stroke="white" stroke-width="1.5"/>
+        <path d="M16 8h3l3 3v5h-4" fill="#667eea" stroke="white" stroke-width="1.5"/>
+        <circle cx="5.5" cy="18.5" r="2.5" fill="#333" stroke="white" stroke-width="1"/>
+        <circle cx="18.5" cy="18.5" r="2.5" fill="#333" stroke="white" stroke-width="1"/>
+      </svg>
+    `),
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
+  });
+
+  // Warehouse icon for origin/destination
+  const warehouseIcon = new L.Icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+        <path d="M12 2L2 7v15h20V7L12 2z" fill="#10b981" stroke="white" stroke-width="1.5"/>
+        <rect x="9" y="10" width="6" height="12" fill="white" opacity="0.3"/>
+        <rect x="9" y="10" width="2" height="3" fill="white"/>
+        <rect x="13" y="10" width="2" height="3" fill="white"/>
+        <rect x="9" y="15" width="2" height="3" fill="white"/>
+        <rect x="13" y="15" width="2" height="3" fill="white"/>
+      </svg>
+    `),
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32]
+  });
+
+  // Completed delivery icon
+  const completedIcon = new L.Icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" fill="#10b981" stroke="white" stroke-width="2"/>
+        <path d="M7 12l3 3 7-7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `),
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -36]
+  });
+
+  // Loading icon
+  const loadingIcon = new L.Icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" fill="#f97316" stroke="white" stroke-width="2"/>
+        <path d="M12 6v6l4 4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+    `),
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -36]
+  });
+
+  // Get appropriate icon based on shipment status
+  const getShipmentIcon = (status) => {
+    switch(status) {
+      case 'In Transit': return truckIcon;
+      case 'Delivered': return completedIcon;
+      case 'Loading': return loadingIcon;
+      default: return truckIcon;
+    }
+  };
 
   // Mock data
   const mockData = {
@@ -57,6 +137,9 @@ const GradientDashboard = () => {
         progress: 75,
         temperature: 2.1,
         location: 'Connecticut',
+        coordinates: { lat: 41.6032, lng: -73.0877 }, // Connecticut
+        origin: { lat: 40.7128, lng: -74.0060, name: 'New York' },
+        destination: { lat: 42.3601, lng: -71.0589, name: 'Boston' },
         eta: '2 hours',
         driver: 'John Smith',
         statusColor: '#667eea'
@@ -68,6 +151,9 @@ const GradientDashboard = () => {
         progress: 100,
         temperature: 1.8,
         location: 'Orlando, FL',
+        coordinates: { lat: 28.5383, lng: -81.3792 }, // Orlando
+        origin: { lat: 25.7617, lng: -80.1918, name: 'Miami' },
+        destination: { lat: 28.5383, lng: -81.3792, name: 'Orlando' },
         eta: 'Delivered',
         driver: 'Maria Garcia',
         statusColor: '#56ab2f'
@@ -79,6 +165,9 @@ const GradientDashboard = () => {
         progress: 15,
         temperature: 2.5,
         location: 'Chicago, IL',
+        coordinates: { lat: 41.8781, lng: -87.6298 }, // Chicago
+        origin: { lat: 41.8781, lng: -87.6298, name: 'Chicago' },
+        destination: { lat: 42.3314, lng: -83.0458, name: 'Detroit' },
         eta: '4 hours',
         driver: 'Robert Johnson',
         statusColor: '#f7971e'
@@ -335,9 +424,97 @@ const GradientDashboard = () => {
         {activeTab === 1 && (
           <div className="tab-content">
             <h2 className="section-title">Live Shipment Tracking</h2>
+            
+            {/* Interactive Map */}
+            <div className="map-container" style={{ marginBottom: '2rem' }}>
+              <MapContainer 
+                center={[39.8283, -98.5795]} 
+                zoom={4} 
+                style={{ height: '500px', borderRadius: '24px', overflow: 'hidden' }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                
+                {mockData.shipments.map((shipment) => (
+                  <React.Fragment key={shipment.id}>
+                    {/* Current location marker with custom icon */}
+                    <Marker 
+                      position={[shipment.coordinates.lat, shipment.coordinates.lng]}
+                      icon={getShipmentIcon(shipment.status)}
+                    >
+                      <Popup>
+                        <div style={{ minWidth: '200px' }}>
+                          <h3 style={{ margin: '0 0 8px 0', color: shipment.statusColor, fontSize: '16px', fontWeight: '700' }}>
+                            {shipment.id}
+                          </h3>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>Status:</strong> {shipment.status}</p>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>Location:</strong> {shipment.location}</p>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>Temperature:</strong> {shipment.temperature}°C</p>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>Driver:</strong> {shipment.driver}</p>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>Progress:</strong> {shipment.progress}%</p>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>ETA:</strong> {shipment.eta}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                    
+                    {/* Route line from origin to destination */}
+                    <Polyline 
+                      positions={[
+                        [shipment.origin.lat, shipment.origin.lng],
+                        [shipment.coordinates.lat, shipment.coordinates.lng],
+                        [shipment.destination.lat, shipment.destination.lng]
+                      ]}
+                      color={shipment.statusColor}
+                      weight={selectedShipment === shipment.id ? 5 : 3}
+                      opacity={selectedShipment === shipment.id ? 1 : 0.7}
+                      dashArray={shipment.status === 'Delivered' ? '0' : '10, 10'}
+                    />
+                    
+                    {/* Origin marker */}
+                    <Marker 
+                      position={[shipment.origin.lat, shipment.origin.lng]}
+                      icon={warehouseIcon}
+                      opacity={selectedShipment === null || selectedShipment === shipment.id ? 1 : 0.4}
+                    >
+                      <Popup>
+                        <div style={{ minWidth: '150px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', color: '#10b981' }}>📦 Origin</h4>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>{shipment.origin.name}</strong></p>
+                          <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>Shipment: {shipment.id}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                    
+                    {/* Destination marker */}
+                    <Marker 
+                      position={[shipment.destination.lat, shipment.destination.lng]}
+                      icon={warehouseIcon}
+                      opacity={selectedShipment === null || selectedShipment === shipment.id ? 1 : 0.4}
+                    >
+                      <Popup>
+                        <div style={{ minWidth: '150px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', color: '#10b981' }}>🎯 Destination</h4>
+                          <p style={{ margin: '4px 0', fontSize: '14px' }}><strong>{shipment.destination.name}</strong></p>
+                          <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>Shipment: {shipment.id}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  </React.Fragment>
+                ))}
+              </MapContainer>
+            </div>
+            
+            {/* Shipment Cards */}
             <div className="shipments-grid">
               {mockData.shipments.map((shipment) => (
-                <div key={shipment.id} className="shipment-card">
+                <div 
+                  key={shipment.id} 
+                  className={`shipment-card ${selectedShipment === shipment.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedShipment(selectedShipment === shipment.id ? null : shipment.id)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="shipment-header">
                     <div>
                       <h3 className="shipment-id">{shipment.id}</h3>
