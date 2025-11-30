@@ -7,6 +7,7 @@ const Joi = require('joi');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const crypto = require('crypto');
+const CardanoWasm = require('@emurgo/cardano-serialization-lib-nodejs');
 
 // Load environment variables
 dotenv.config();
@@ -33,12 +34,15 @@ const logger = winston.createLogger({
 const app = express();
 const PORT = process.env.PORT || 4001;
 
-// Masumi Configuration
-const MASUMI_CONFIG = {
-  apiUrl: process.env.MASUMI_API_URL || 'https://api.masumi.example.com',
-  apiKey: process.env.MASUMI_API_KEY || 'masumi_key_placeholder',
-  webhookSecret: process.env.MASUMI_WEBHOOK_SECRET || 'webhook_secret_placeholder',
-  network: process.env.CARDANO_NETWORK || 'testnet'
+// Cardano Blockchain Configuration
+const CARDANO_CONFIG = {
+  blockfrostUrl: process.env.CARDANO_NETWORK === 'mainnet' 
+    ? 'https://cardano-mainnet.blockfrost.io/api/v0'
+    : 'https://cardano-preprod.blockfrost.io/api/v0',
+  blockfrostApiKey: process.env.BLOCKFROST_API_KEY || 'preprodYourBlockfrostKeyHere',
+  webhookSecret: process.env.WEBHOOK_SECRET || 'webhook_secret_placeholder',
+  network: process.env.CARDANO_NETWORK || 'testnet',
+  minConfirmations: parseInt(process.env.MIN_CONFIRMATIONS) || 1
 };
 
 // In-memory storage for invoices and payments
@@ -53,7 +57,7 @@ app.use(helmet());
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Masumi-Signature']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature']
 }));
 app.use(express.json({ limit: '10mb' }));
 
@@ -105,14 +109,48 @@ const webhookSchema = Joi.object({
 
 // Utility functions
 function generateWalletAddress() {
-  // TODO: Replace with actual Masumi SDK wallet generation
-  // Example: const wallet = await MasumiSDK.createWallet();
-  // return wallet.address;
-  
-  // Mock wallet address generation for testnet
-  const prefix = MASUMI_CONFIG.network === 'mainnet' ? 'addr1' : 'addr_test1';
-  const randomSuffix = crypto.randomBytes(20).toString('hex');
-  return `${prefix}${randomSuffix}`;
+  try {
+    // Generate a new private key
+    const privateKey = CardanoWasm.PrivateKey.generate_ed25519();
+    const publicKey = privateKey.to_public();
+    
+    // Create stake key
+    const stakePrivateKey = CardanoWasm.PrivateKey.generate_ed25519();
+    const stakePublicKey = stakePrivateKey.to_public();
+    
+    // Build payment and stake credentials
+    const paymentKeyHash = publicKey.hash();
+    const stakeKeyHash = stakePublicKey.hash();
+    
+    const paymentCredential = CardanoWasm.Credential.from_keyhash(paymentKeyHash);
+    const stakeCredential = CardanoWasm.Credential.from_keyhash(stakeKeyHash);
+    
+    // Create base address
+    const networkId = CARDANO_CONFIG.network === 'mainnet' 
+      ? CardanoWasm.NetworkInfo.mainnet().network_id()
+      : CardanoWasm.NetworkInfo.testnet_preprod().network_id();
+    
+    const baseAddress = CardanoWasm.BaseAddress.new(
+      networkId,
+      paymentCredential,
+      stakeCredential
+    );
+    
+    const address = baseAddress.to_address().to_bech32();
+    
+    // Store private keys (in production, use secure key management)
+    wallets.set(address, {
+      address,
+      privateKey: Buffer.from(privateKey.as_bytes()).toString('hex'),
+      stakePrivateKey: Buffer.from(stakePrivateKey.as_bytes()).toString('hex'),
+      createdAt: new Date()
+    });
+    
+    return address;
+  } catch (error) {
+    logger.error('Failed to generate wallet address', { error: error.message });
+    throw error;
+  }
 }
 
 function convertAdaToLovelace(ada) {
@@ -136,100 +174,300 @@ function validateWebhookSignature(payload, signature, secret) {
   return signature === `sha256=${expectedSignature}`;
 }
 
-// Masumi SDK integration stubs
-async function callMasumiAPI(endpoint, method = 'GET', data = null) {
+// Cardano Blockfrost API integration
+async function callBlockfrostAPI(endpoint, method = 'GET', data = null) {
   try {
-    logger.debug('Calling Masumi API', {
-      endpoint: `${MASUMI_CONFIG.apiUrl}${endpoint}`,
+    const url = `${CARDANO_CONFIG.blockfrostUrl}${endpoint}`;
+    
+    logger.debug('Calling Blockfrost API', {
+      endpoint: url,
       method
     });
 
-    // TODO: Replace with actual Masumi SDK call
-    // Example:
-    // const masumi = new MasumiSDK({
-    //   apiKey: MASUMI_CONFIG.apiKey,
-    //   network: MASUMI_CONFIG.network
-    // });
-    // return await masumi.call(endpoint, method, data);
-
-    // Mock API response for development
-    await new Promise(resolve => setTimeout(resolve, 200)); // Simulate network delay
-
-    // Return mock successful response
+    const config = {
+      method,
+      url,
+      headers: {
+        'project_id': CARDANO_CONFIG.blockfrostApiKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    };
+    
+    if (data && (method === 'POST' || method === 'PUT')) {
+      config.data = data;
+    }
+    
+    const response = await axios(config);
+    
     return {
       success: true,
-      data: {
-        transactionId: `tx_${uuidv4()}`,
-        status: 'created',
-        paymentAddress: generateWalletAddress(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-      }
+      data: response.data
     };
 
   } catch (error) {
-    logger.error('Masumi API call failed', {
+    logger.error('Blockfrost API call failed', {
       endpoint,
       method,
-      error: error.message
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data
     });
 
     return {
       success: false,
-      error: error.message
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status
     };
   }
 }
 
-async function createMasumiPaymentRequest(invoiceData) {
-  // TODO: Replace with actual Masumi SDK payment request creation
-  // Example:
-  // const paymentRequest = await MasumiSDK.createPaymentRequest({
-  //   amount: invoiceData.amountLovelace,
-  //   currency: 'LOVELACE',
-  //   description: invoiceData.description,
-  //   metadata: invoiceData.metadata,
-  //   webhookUrl: process.env.WEBHOOK_BASE_URL + '/payment/webhook'
-  // });
-  // return paymentRequest;
+// Check transaction status on blockchain
+async function checkTransactionStatus(txHash) {
+  try {
+    const result = await callBlockfrostAPI(`/txs/${txHash}`);
+    
+    if (!result.success) {
+      return { found: false, error: result.error };
+    }
+    
+    const tx = result.data;
+    
+    // Get latest block for confirmations
+    const blockResult = await callBlockfrostAPI('/blocks/latest');
+    const currentBlock = blockResult.success ? blockResult.data.height : 0;
+    
+    const confirmations = tx.block_height ? currentBlock - tx.block_height : 0;
+    
+    return {
+      found: true,
+      hash: tx.hash,
+      blockHeight: tx.block_height,
+      blockTime: tx.block_time,
+      confirmations,
+      outputAmount: tx.output_amount,
+      fees: tx.fees,
+      slot: tx.slot
+    };
+  } catch (error) {
+    logger.error('Failed to check transaction status', {
+      txHash,
+      error: error.message
+    });
+    return { found: false, error: error.message };
+  }
+}
 
-  // Mock payment request creation
+// Monitor address for incoming payments
+async function checkAddressBalance(address) {
+  try {
+    const result = await callBlockfrostAPI(`/addresses/${address}`);
+    
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    
+    const addressData = result.data;
+    const totalReceived = addressData.amount.reduce((sum, asset) => {
+      if (asset.unit === 'lovelace') {
+        return sum + parseInt(asset.quantity);
+      }
+      return sum;
+    }, 0);
+    
+    // Get transaction history
+    const txResult = await callBlockfrostAPI(`/addresses/${address}/transactions?order=desc`);
+    const transactions = txResult.success ? txResult.data : [];
+    
+    return {
+      success: true,
+      address,
+      totalReceived,
+      transactions: transactions.slice(0, 10) // Last 10 transactions
+    };
+  } catch (error) {
+    logger.error('Failed to check address balance', {
+      address,
+      error: error.message
+    });
+    return { success: false, error: error.message };
+  }
+}
+
+async function createCardanoPaymentRequest(invoiceData) {
+  // Generate a unique payment address for this invoice
+  const paymentAddress = generateWalletAddress();
+  
   const paymentRequest = {
     paymentId: uuidv4(),
-    paymentAddress: generateWalletAddress(),
+    paymentAddress,
     amount: invoiceData.amountLovelace,
     currency: 'LOVELACE',
     description: invoiceData.description,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    qrCode: `cardano:${generateWalletAddress()}?amount=${invoiceData.amountLovelace}`,
-    deepLink: `https://wallet.example.com/pay?address=${generateWalletAddress()}&amount=${invoiceData.amountLovelace}`
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    qrCode: `web+cardano:${paymentAddress}?amount=${invoiceData.amountLovelace}`,
+    deepLink: `https://wallet.cardano.org/pay?address=${paymentAddress}&amount=${invoiceData.amountLovelace}`
   };
 
-  logger.info('Mock Masumi payment request created', {
+  logger.info('Cardano payment request created', {
     paymentId: paymentRequest.paymentId,
-    amount: invoiceData.amount,
-    currency: invoiceData.currency
+    paymentAddress,
+    amountLovelace: invoiceData.amountLovelace,
+    amountAda: convertLovelaceToAda(invoiceData.amountLovelace)
   });
+  
+  // Start monitoring this address for payments (in background)
+  startPaymentMonitoring(paymentRequest.paymentId, paymentAddress, invoiceData.amountLovelace, invoiceData.invoiceId);
 
   return paymentRequest;
 }
 
+// Background payment monitoring
+const monitoringIntervals = new Map();
+
+function startPaymentMonitoring(paymentId, address, expectedAmount, invoiceId) {
+  // Check every 20 seconds for new transactions
+  const intervalId = setInterval(async () => {
+    try {
+      const invoice = invoices.get(invoiceId);
+      
+      // Stop monitoring if invoice is paid, failed, or expired
+      if (!invoice || invoice.status !== 'pending') {
+        clearInterval(intervalId);
+        monitoringIntervals.delete(paymentId);
+        logger.info('Stopped payment monitoring', { paymentId, invoiceId, status: invoice?.status });
+        return;
+      }
+      
+      // Check if invoice expired
+      if (invoice.expiresAt && new Date() > new Date(invoice.expiresAt)) {
+        invoice.status = 'expired';
+        invoice.updatedAt = new Date();
+        clearInterval(intervalId);
+        monitoringIntervals.delete(paymentId);
+        logger.info('Invoice expired', { invoiceId, paymentId });
+        return;
+      }
+      
+      // Check address for payments
+      const balanceCheck = await checkAddressBalance(address);
+      
+      if (balanceCheck.success && balanceCheck.totalReceived >= expectedAmount) {
+        // Payment received! Get transaction details
+        if (balanceCheck.transactions && balanceCheck.transactions.length > 0) {
+          const latestTx = balanceCheck.transactions[0];
+          const txDetails = await checkTransactionStatus(latestTx.tx_hash);
+          
+          if (txDetails.found && txDetails.confirmations >= CARDANO_CONFIG.minConfirmations) {
+            // Update invoice to paid
+            invoice.status = 'paid';
+            invoice.transactionHash = latestTx.tx_hash;
+            invoice.blockHeight = txDetails.blockHeight;
+            invoice.confirmations = txDetails.confirmations;
+            invoice.paidAt = new Date(txDetails.blockTime * 1000);
+            invoice.updatedAt = new Date();
+            
+            logger.info('Payment confirmed on blockchain', {
+              invoiceId,
+              paymentId,
+              txHash: latestTx.tx_hash,
+              confirmations: txDetails.confirmations,
+              amount: balanceCheck.totalReceived
+            });
+            
+            // Stop monitoring
+            clearInterval(intervalId);
+            monitoringIntervals.delete(paymentId);
+            
+            // Trigger webhook if configured
+            if (invoice.webhookUrl) {
+              triggerPaymentWebhook(invoice, 'payment.confirmed', latestTx.tx_hash);
+            }
+          } else {
+            logger.debug('Payment received but waiting for confirmations', {
+              invoiceId,
+              txHash: latestTx.tx_hash,
+              confirmations: txDetails.confirmations,
+              required: CARDANO_CONFIG.minConfirmations
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Payment monitoring error', {
+        paymentId,
+        invoiceId,
+        error: error.message
+      });
+    }
+  }, 20000); // Check every 20 seconds
+  
+  monitoringIntervals.set(paymentId, intervalId);
+  logger.info('Started payment monitoring', { paymentId, address, expectedAmount });
+}
+
+// Trigger webhook notification
+async function triggerPaymentWebhook(invoice, event, transactionHash) {
+  try {
+    await axios.post(invoice.webhookUrl, {
+      event,
+      invoice: {
+        invoiceId: invoice.invoiceId,
+        amount: invoice.amount,
+        currency: invoice.currency,
+        status: invoice.status
+      },
+      payment: {
+        transactionHash,
+        blockHeight: invoice.blockHeight,
+        confirmations: invoice.confirmations,
+        paidAt: invoice.paidAt
+      },
+      timestamp: new Date().toISOString()
+    }, {
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Cardano-Payment-Service/1.0'
+      }
+    });
+    
+    logger.info('Webhook notification sent', {
+      invoiceId: invoice.invoiceId,
+      webhookUrl: invoice.webhookUrl,
+      event
+    });
+  } catch (error) {
+    logger.error('Failed to send webhook notification', {
+      invoiceId: invoice.invoiceId,
+      webhookUrl: invoice.webhookUrl,
+      error: error.message
+    });
+  }
+}
+
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  // Test Blockfrost connection
+  const blockfrostHealth = await callBlockfrostAPI('/health');
+  
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    service: 'masumi-payment-service',
+    service: 'cardano-payment-service',
     version: process.env.npm_package_version || '1.0.0',
     uptime: process.uptime(),
-    masumi: {
-      apiUrl: MASUMI_CONFIG.apiUrl,
-      network: MASUMI_CONFIG.network,
-      connected: true // TODO: Implement actual Masumi connection check
+    cardano: {
+      blockfrostUrl: CARDANO_CONFIG.blockfrostUrl,
+      network: CARDANO_CONFIG.network,
+      connected: blockfrostHealth.success,
+      minConfirmations: CARDANO_CONFIG.minConfirmations
     },
     stats: {
       totalInvoices: invoices.size,
       totalPayments: payments.size,
-      activeInvoices: Array.from(invoices.values()).filter(inv => inv.status === 'pending').length
+      activeInvoices: Array.from(invoices.values()).filter(inv => inv.status === 'pending').length,
+      activeMonitors: monitoringIntervals.size
     }
   });
 });
@@ -267,8 +505,8 @@ app.post('/invoice/create', async (req, res, next) => {
       description: invoiceData.description
     });
 
-    // TODO: Create payment request with Masumi SDK
-    const paymentRequest = await createMasumiPaymentRequest({
+    // Create Cardano payment request and start monitoring
+    const paymentRequest = await createCardanoPaymentRequest({
       ...invoiceData,
       amountLovelace,
       invoiceId
@@ -401,14 +639,14 @@ app.get('/invoices', (req, res) => {
 // Payment webhook endpoint
 app.post('/payment/webhook', async (req, res, next) => {
   try {
-    const signature = req.get('X-Masumi-Signature');
+    const signature = req.get('X-Webhook-Signature');
     const payload = req.body;
     
     // Validate webhook signature
-    if (!validateWebhookSignature(payload, signature, MASUMI_CONFIG.webhookSecret)) {
+    if (!validateWebhookSignature(payload, signature, CARDANO_CONFIG.webhookSecret)) {
       logger.warn('Invalid webhook signature', {
         signature,
-        expectedSecret: MASUMI_CONFIG.webhookSecret.substring(0, 8) + '...'
+        expectedSecret: CARDANO_CONFIG.webhookSecret.substring(0, 8) + '...'
       });
       
       return res.status(401).json({
@@ -649,22 +887,37 @@ app.use('*', (req, res) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
-  // TODO: Close database connections and Masumi SDK connections
+  
+  // Stop all payment monitoring intervals
+  for (const [paymentId, intervalId] of monitoringIntervals.entries()) {
+    clearInterval(intervalId);
+    logger.info('Stopped monitoring', { paymentId });
+  }
+  monitoringIntervals.clear();
+  
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully');
+  
+  // Stop all payment monitoring intervals
+  for (const [paymentId, intervalId] of monitoringIntervals.entries()) {
+    clearInterval(intervalId);
+  }
+  monitoringIntervals.clear();
+  
   process.exit(0);
 });
 
 // Start server
 app.listen(PORT, () => {
-  logger.info(`Masumi Payment Service started on port ${PORT}`, {
+  logger.info(`Cardano Payment Service started on port ${PORT}`, {
     environment: process.env.NODE_ENV || 'development',
     version: process.env.npm_package_version || '1.0.0',
-    masumiApiUrl: MASUMI_CONFIG.apiUrl,
-    cardanoNetwork: MASUMI_CONFIG.network
+    blockfrostUrl: CARDANO_CONFIG.blockfrostUrl,
+    cardanoNetwork: CARDANO_CONFIG.network,
+    minConfirmations: CARDANO_CONFIG.minConfirmations
   });
 });
 

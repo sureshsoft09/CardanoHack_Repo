@@ -12,20 +12,16 @@ This project demonstrates a complete end-to-end freight management solution that
 ┌─────────────────┬─────────────────┬─────────────────┐
 │   Frontend      │   Backend       │   Blockchain    │
 │                 │                 │                 │
-│ React + Wallet  │ Node.js APIs    │ Plutus V2       │
-│ Integration     │ TypeScript      │ Smart Contracts │
-│                 │ Microservices   │                 │
+│ React + Wallet  │ Node.js APIs    │ Real Cardano    │
+│ Integration     │ TypeScript      │ Transactions    │
+│ + Leaflet Maps  │ Microservices   │                 │
 ├─────────────────┼─────────────────┼─────────────────┤
-│ • Nami/Eternl   │ • Tracking      │ • Escrow        │
-│ • Payment UI    │ • Compliance    │ • Validation    │
-│ • Real-time     │ • Settlement    │ • Cardano       │
-│   Dashboard     │ • IoT Gateway   │   Integration   │
+│ • Nami/Eternl   │ • Tracking      │ • Blockfrost    │
+│ • Real Payments │ • Compliance    │   API           │
+│ • Interactive   │ • Settlement    │ • CSL Lib       │
+│   Dashboard     │ • Payment Svc   │ • Live Wallet   │
+│ • Live Tracking │ • IoT Gateway   │   Monitoring    │
 └─────────────────┴─────────────────┴─────────────────┘
-                           │
-                    ┌─────────────┐
-                    │  Hydra L2   │
-                    │  Scaling    │
-                    └─────────────┘
 ```
 
 ## 📁 Project Structure
@@ -40,22 +36,23 @@ Smart Frieght Mgmt System/
 │       └── shared/                 # Common utilities and types
 ├── digital-twin-service/           # Digital twin API gateway
 ├── iot-simulator/                  # IoT sensor data simulation
-├── frontend-react/                 # React web application
-├── masumi-integration/             # Cardano payment processing
-│   ├── payment-service/            # Payment endpoints and webhooks
-│   └── agent-registration/         # Agent management
+├── frontend-react/                 # React web application with Leaflet maps
+├── masumi-integration/             # Real Cardano payment processing
+│   └── payment-service/            # Blockfrost API + Auto payment monitoring
 └── onchain/
-    ├── plutus/                     # Haskell smart contracts
-    └── hydra/                      # Layer 2 scaling integration
+    ├── plutus/                     # Smart contracts (reference)
+    └── hydra/                      # Layer 2 integration (reference)
 ```
 
 ## ✨ Key Features
 
-### 🔗 Blockchain Integration
-- **Plutus V2 Smart Contracts**: Shipment escrow with cryptographic validation
-- **Cardano Wallet Support**: Nami, Eternl, and testnet compatibility
-- **Hydra Layer 2**: Fast, low-cost off-chain payments with instant finality
-- **On-chain Settlement**: Automatic mainnet settlement for large transactions
+### 🔗 Real Blockchain Integration
+- **Cardano Serialization Library**: Real wallet generation with ED25519 cryptography
+- **Blockfrost API**: Live blockchain queries and transaction verification
+- **Cardano Wallet Support**: Nami, Eternl wallet connectivity with real ADA transfers
+- **Automatic Payment Monitoring**: Background process checks payments every 20 seconds
+- **Transaction Confirmations**: Configurable blockchain confirmation requirements
+- **Real Testnet/Mainnet**: Actual Cardano blockchain integration (no mocks)
 
 ### 🌐 Microservices Architecture
 - **Tracking Agent**: Real-time shipment location and status tracking
@@ -64,10 +61,12 @@ Smart Frieght Mgmt System/
 - **Digital Twin Service**: Unified API gateway with caching and aggregation
 
 ### 📱 Modern Frontend
-- **React Application**: Responsive design with real-time updates
-- **Multi-Wallet Support**: Connect with popular Cardano wallets
-- **Payment Interface**: Dual payment methods (Hydra L2 + On-chain)
-- **Dashboard**: Live IoT data visualization and shipment tracking
+- **React Application**: Premium gradient UI with glass morphism effects
+- **Multi-Wallet Support**: Real Cardano wallet integration (Nami/Eternl)
+- **Interactive Map**: Leaflet-based live shipment tracking with custom icons
+- **Real Payments**: Direct blockchain transactions via Settlement Agent
+- **Premium Dashboard**: Chart.js analytics, high-contrast stat cards
+- **Live Tracking**: Click-to-highlight shipments with route visualization
 
 ### 🔧 DevOps & Infrastructure
 - **Docker Integration**: Complete containerized development environment
@@ -102,30 +101,49 @@ Smart Frieght Mgmt System/
    # Frontend
    cd frontend-react && npm install && cd ..
    
-   # Payment service
+   # Payment service (Real Cardano integration)
    cd masumi-integration/payment-service && npm install && cd ../..
+   
+   # IoT Simulator
+   cd iot-simulator && npm install && cd ..
    ```
 
-3. **Start development environment:**
+3. **Configure Payment Service:**
    ```bash
-   # Start Hydra nodes (Layer 2)
-   cd onchain/hydra
-   docker-compose up -d
-   
-   # Start backend services
-   cd ../../backend/agents/tracking-agent && npm run dev &
-   cd ../compliance-agent && npm run dev &
-   cd ../settlement-agent && npm run dev &
-   
-   # Start frontend
-   cd ../../frontend-react && npm start
+   # Get free Blockfrost API key from https://blockfrost.io/
+   cd masumi-integration/payment-service
+   cp .env.example .env
+   # Edit .env and add your BLOCKFROST_API_KEY
    ```
 
-4. **Access the application:**
-   - Frontend: http://localhost:3000
+4. **Start development environment:**
+   ```bash
+   # Terminal 1: Tracking Agent
+   cd backend/agents/tracking-agent && npm start
+   
+   # Terminal 2: Compliance Agent
+   cd backend/agents/compliance-agent && npm start
+   
+   # Terminal 3: Settlement Agent (Real blockchain transactions)
+   cd backend/agents/settlement-agent && node src/server.js
+   
+   # Terminal 4: Payment Service (Auto payment monitoring)
+   cd masumi-integration/payment-service && node src/server.js
+   
+   # Terminal 5: IoT Simulator
+   cd iot-simulator && node src/iotSimulator.js
+   
+   # Terminal 6: Frontend
+   cd frontend-react && npm start
+   ```
+
+5. **Access the application:**
+   - Frontend Dashboard: http://localhost:3000
    - Tracking API: http://localhost:3001
    - Compliance API: http://localhost:3002
-   - Settlement API: http://localhost:3003
+   - Settlement API (Real Cardano): http://localhost:3003
+   - Payment Service: http://localhost:4001
+   - IoT Simulator: Port 5000
 
 ## 🔧 Configuration
 
@@ -138,8 +156,23 @@ Create `.env` files in each service directory:
 PORT=3001
 NODE_ENV=development
 CARDANO_NETWORK=testnet
-HYDRA_NODE_URL=ws://localhost:4001
 LOG_LEVEL=info
+```
+
+**Settlement Agent (.env):**
+```env
+PORT=3003
+CARDANO_NETWORK=testnet
+BLOCKFROST_PROJECT_ID=preprodYourKeyHere
+```
+
+**Payment Service (.env):**
+```env
+PORT=4001
+BLOCKFROST_API_KEY=preprodYourKeyHere
+CARDANO_NETWORK=testnet
+MIN_CONFIRMATIONS=1
+PAYMENT_CHECK_INTERVAL=20000
 ```
 
 **Frontend (.env):**
@@ -173,33 +206,43 @@ cabal run ShipmentEscrow
 # Outputs validator script and example transactions
 ```
 
-### 3. Hydra Payment Flow
+### 3. Real Cardano Payment Flow
 
 ```javascript
-const hydraClient = new SmartFreightHydraClient();
-await hydraClient.initialize();
-
-// Execute micro-payment
-await hydraClient.executePayment({
-    shipmentId: 'SHIP-001',
-    amount: 1000000, // 1 ADA in lovelace
-    recipient: 'addr_test1...'
+// Payment Service automatically monitors blockchain
+const response = await fetch('http://localhost:4001/invoice/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    recipientAddress: 'addr_test1...',
+    amount: 50,
+    currency: 'ADA',
+    description: 'Compliance violation payment',
+    metadata: { shipmentId: 'SHIP-001' }
+  })
 });
+
+const invoice = await response.json();
+// Send ADA to invoice.payment.paymentAddress
+// Service detects payment within 20-60 seconds
 ```
 
-### 4. Frontend Wallet Integration
+### 4. Frontend Wallet Integration (Real Transactions)
 
 ```javascript
-// Connect wallet
+// Connect Cardano wallet
 const { connectWallet, payInvoice } = useCardanoWallet();
 await connectWallet('nami');
 
-// Execute payment
+// Execute real blockchain payment via Settlement Agent
 await payInvoice({
-    amount: 5000000, // 5 ADA
-    recipient: 'addr_test1...',
+    invoiceId: 'INV-001',
+    amount: 50000000, // 50 ADA in lovelace
+    recipient: 'addr_test1qz...',
     shipmentId: 'SHIP-001'
 });
+// Transaction submitted to Cardano blockchain
+// Track at: https://preprod.cardanoscan.io
 ```
 
 ## 🧪 Testing
@@ -260,18 +303,24 @@ curl http://localhost:4001/history
 ## 🔐 Security Considerations
 
 ### Development Environment
-- All examples use Cardano **testnet** (no real funds)
-- Mock implementations for payment processing
-- Local key generation for Hydra nodes
-- HTTPS recommended for production deployment
+- Uses Cardano **preprod testnet** (free testnet ADA)
+- **Real blockchain integration** via Blockfrost API
+- Automatic payment monitoring every 20 seconds
+- Real wallet generation using cryptographic libraries
+- Get testnet ADA: https://docs.cardano.org/cardano-testnet/tools/faucet/
+- HTTPS required for production deployment
 
 ### Production Checklist
-- [ ] Migrate to Cardano mainnet
-- [ ] Implement proper key management (HSM/KMS)
-- [ ] Add rate limiting and authentication
-- [ ] Enable comprehensive audit logging
-- [ ] Configure monitoring and alerting
-- [ ] Conduct security audit of smart contracts
+- [ ] Get Blockfrost mainnet API key (https://blockfrost.io/)
+- [ ] Update CARDANO_NETWORK=mainnet in all services
+- [ ] Implement proper key management (HSM/KMS for wallet keys)
+- [ ] Add rate limiting and authentication to all APIs
+- [ ] Enable comprehensive audit logging for all transactions
+- [ ] Set up blockchain transaction monitoring and alerting
+- [ ] Configure payment webhook retry logic
+- [ ] Implement database persistence (replace in-memory storage)
+- [ ] Set up backup strategy for wallet private keys
+- [ ] Conduct security audit of payment flows
 
 ## 🚀 Deployment
 
