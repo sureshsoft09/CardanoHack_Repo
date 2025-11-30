@@ -101,6 +101,29 @@ const InvoicePayment = ({ invoice, onPaymentComplete }) => {
   const [paymentMethod, setPaymentMethod] = useState('direct');
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Check both hook state and wallet service directly
+  const walletServiceConnected = walletService.isConnected();
+
+  // Auto-sync wallet state if service is connected but hook isn't
+  React.useEffect(() => {
+    if (!isConnected && walletServiceConnected) {
+      const syncAndProceed = async () => {
+        try {
+          console.log('Auto-syncing wallet state...');
+          setIsSyncing(true);
+          await walletService.forceRefreshConnectionState();
+          setIsSyncing(false);
+        } catch (error) {
+          console.error('Failed to sync wallet state:', error);
+          toast.error('Wallet sync failed, please try again');
+          setIsSyncing(false);
+        }
+      };
+      
+      syncAndProceed();
+    }
+  }, [isConnected, walletServiceConnected]);
+
   // Debug wallet connection status
   console.log('InvoicePayment - Wallet Status:', { 
     isConnected, 
@@ -125,9 +148,6 @@ const InvoicePayment = ({ invoice, onPaymentComplete }) => {
       toast.error(`Payment failed: ${error.message}`);
     }
   };
-
-  // Check both hook state and wallet service directly
-  const walletServiceConnected = walletService.isConnected();
   
   if (!isConnected && !walletServiceConnected) {
     return (
@@ -140,56 +160,15 @@ const InvoicePayment = ({ invoice, onPaymentComplete }) => {
     );
   }
 
-  // If wallet service is connected but hook state isn't updated, show a refresh suggestion
-  if (!isConnected && walletServiceConnected) {
-    const handleSyncState = async () => {
-      try {
-        setIsSyncing(true);
-        console.log('Syncing wallet state...');
-        
-        await walletService.forceRefreshConnectionState();
-        
-        // Give React a moment to update state, then proceed with payment
-        setTimeout(() => {
-          if (walletService.isConnected()) {
-            console.log('State synced, proceeding with payment...');
-            handlePayment();
-          } else {
-            console.warn('Wallet still not connected after sync');
-            toast.error('Wallet sync failed, please refresh the page');
-          }
-          setIsSyncing(false);
-        }, 1000);
-        
-      } catch (error) {
-        console.error('Failed to sync wallet state:', error);
-        setIsSyncing(false);
-        toast.error('Sync failed, refreshing page...');
-        setTimeout(() => window.location.reload(), 1000);
-      }
-    };
-
+  // If syncing, show loading state
+  if (isSyncing || (!isConnected && walletServiceConnected)) {
     return (
       <div className="payment-state-sync">
-        <p>Wallet connected but interface not updated.</p>
-        <button onClick={handleSyncState} disabled={isSyncing}>
-          {isSyncing ? 'Syncing...' : 'Sync & Pay'}
-        </button>
-        <button 
-          onClick={() => window.location.reload()} 
-          disabled={isSyncing}
-          style={{marginLeft: '10px'}}
-        >
-          Refresh Page
-        </button>
-        <p style={{fontSize: '12px', color: '#666'}}>
-          Debug: Wallet service has connection but React state is stale
-        </p>
-        {isSyncing && (
-          <div style={{marginTop: '10px', fontSize: '14px', color: '#007bff'}}>
-            🔄 Synchronizing wallet state...
-          </div>
-        )}
+        <div style={{textAlign: 'center', padding: '20px'}}>
+          <div style={{fontSize: '24px', marginBottom: '10px'}}>🔄</div>
+          <p>Synchronizing wallet state...</p>
+          <p style={{fontSize: '12px', color: '#666'}}>Please wait a moment</p>
+        </div>
       </div>
     );
   }
