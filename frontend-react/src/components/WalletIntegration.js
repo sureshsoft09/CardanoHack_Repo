@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCardanoWallet, useInvoicePayment } from '../hooks/useWallet';
+import walletService from '../services/wallet';
 import toast from 'react-hot-toast';
 
 // Wallet connection component
@@ -7,6 +8,7 @@ const WalletConnector = () => {
   const {
     isConnected,
     isConnecting,
+    isRefreshing,
     walletInfo,
     availableWallets,
     balance,
@@ -28,8 +30,12 @@ const WalletConnector = () => {
           <p><strong>Address:</strong> {addresses?.used?.[0] || 'Loading...'}</p>
         </div>
         <div className="wallet-actions">
-          <button onClick={refresh}>Refresh</button>
-          <button onClick={disconnect}>Disconnect</button>
+          <button onClick={refresh} disabled={isRefreshing}>
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button onClick={disconnect} disabled={isRefreshing}>
+            Disconnect
+          </button>
         </div>
       </div>
     );
@@ -90,9 +96,17 @@ const WalletConnector = () => {
 
 // Invoice payment component
 const InvoicePayment = ({ invoice, onPaymentComplete }) => {
-  const { isConnected } = useCardanoWallet();
+  const { isConnected, walletInfo } = useCardanoWallet();
   const { payInvoice, isProcessing, paymentResult, error } = useInvoicePayment();
   const [paymentMethod, setPaymentMethod] = useState('direct');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Debug wallet connection status
+  console.log('InvoicePayment - Wallet Status:', { 
+    isConnected, 
+    walletInfo, 
+    hasWalletInfo: !!walletInfo 
+  });
 
   const handlePayment = async () => {
     try {
@@ -112,10 +126,70 @@ const InvoicePayment = ({ invoice, onPaymentComplete }) => {
     }
   };
 
-  if (!isConnected) {
+  // Check both hook state and wallet service directly
+  const walletServiceConnected = walletService.isConnected();
+  
+  if (!isConnected && !walletServiceConnected) {
     return (
       <div className="payment-requires-wallet">
         <p>Please connect your wallet to pay this invoice.</p>
+        <p style={{fontSize: '12px', color: '#666'}}>
+          Debug: Hook Connected={isConnected ? 'true' : 'false'}, Service Connected={walletServiceConnected ? 'true' : 'false'}, WalletInfo={walletInfo ? 'present' : 'missing'}
+        </p>
+      </div>
+    );
+  }
+
+  // If wallet service is connected but hook state isn't updated, show a refresh suggestion
+  if (!isConnected && walletServiceConnected) {
+    const handleSyncState = async () => {
+      try {
+        setIsSyncing(true);
+        console.log('Syncing wallet state...');
+        
+        await walletService.forceRefreshConnectionState();
+        
+        // Give React a moment to update state, then proceed with payment
+        setTimeout(() => {
+          if (walletService.isConnected()) {
+            console.log('State synced, proceeding with payment...');
+            handlePayment();
+          } else {
+            console.warn('Wallet still not connected after sync');
+            toast.error('Wallet sync failed, please refresh the page');
+          }
+          setIsSyncing(false);
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Failed to sync wallet state:', error);
+        setIsSyncing(false);
+        toast.error('Sync failed, refreshing page...');
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    };
+
+    return (
+      <div className="payment-state-sync">
+        <p>Wallet connected but interface not updated.</p>
+        <button onClick={handleSyncState} disabled={isSyncing}>
+          {isSyncing ? 'Syncing...' : 'Sync & Pay'}
+        </button>
+        <button 
+          onClick={() => window.location.reload()} 
+          disabled={isSyncing}
+          style={{marginLeft: '10px'}}
+        >
+          Refresh Page
+        </button>
+        <p style={{fontSize: '12px', color: '#666'}}>
+          Debug: Wallet service has connection but React state is stale
+        </p>
+        {isSyncing && (
+          <div style={{marginTop: '10px', fontSize: '14px', color: '#007bff'}}>
+            🔄 Synchronizing wallet state...
+          </div>
+        )}
       </div>
     );
   }
@@ -241,7 +315,7 @@ const WalletIntegrationExample = () => {
       amountAda: 25,
       currency: 'ADA',
       description: 'Cold chain temperature violation penalty',
-      recipientAddress: 'addr_test1qzx7pe7qmp9e2d8r5r3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q',
+      recipientAddress: process.env.REACT_APP_SETTLEMENT_AGENT_ADDRESS || 'addr_test1qqnrmmtra2vgtvgr9fn38je9f5cpx6mu3pz068l65cer003revuqg67qff2z0ch4e9pkncchmjwzh4lj04kugwedvj9qj2krck',
       status: 'pending',
       metadata: {
         ruleViolated: 'TEMP_COLD_CHAIN',
@@ -257,7 +331,7 @@ const WalletIntegrationExample = () => {
       amountAda: 50,
       currency: 'ADA',
       description: 'Geofence violation - unauthorized route deviation',
-      recipientAddress: 'addr_test1qzx7pe7qmp9e2d8r5r3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q3q',
+      recipientAddress: process.env.REACT_APP_SETTLEMENT_AGENT_ADDRESS || 'addr_test1qqnrmmtra2vgtvgr9fn38je9f5cpx6mu3pz068l65cer003revuqg67qff2z0ch4e9pkncchmjwzh4lj04kugwedvj9qj2krck',
       status: 'pending',
       metadata: {
         ruleViolated: 'GEOFENCE_VIOLATION',
@@ -276,9 +350,29 @@ const WalletIntegrationExample = () => {
 
   return (
     <div className="wallet-integration-example">
-      <header>
-        <h1>Smart Freight Management - Wallet Integration</h1>
-        <p>Cardano Testnet Integration with Nami/Eternl Wallets</p>
+      <header style={{
+        background: 'rgba(255,255,255,0.95)',
+        backdropFilter: 'blur(20px)',
+        padding: '2rem',
+        borderRadius: '1.5rem',
+        marginBottom: '2rem',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+        border: '2px solid rgba(255,255,255,0.3)'
+      }}>
+        <h1 style={{
+          color: '#1e3a8a',
+          fontSize: '2.5rem',
+          fontWeight: '700',
+          margin: '0 0 0.5rem 0',
+          textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>Smart Freight Management - Wallet Integration</h1>
+        <p style={{
+          color: '#1e40af',
+          fontSize: '1.25rem',
+          fontWeight: '600',
+          margin: 0,
+          textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+        }}>🔗 Cardano Testnet Integration with Nami/Eternl Wallets</p>
       </header>
 
       {/* Wallet Connection Section */}

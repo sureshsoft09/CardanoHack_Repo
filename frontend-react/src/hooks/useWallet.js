@@ -7,6 +7,7 @@ export const useCardanoWallet = () => {
   const [walletInfo, setWalletInfo] = useState(null);
   const [availableWallets, setAvailableWallets] = useState([]);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [balance, setBalance] = useState(null);
   const [addresses, setAddresses] = useState(null);
@@ -51,7 +52,7 @@ export const useCardanoWallet = () => {
     return removeListener;
   }, []);
 
-  // Detect available wallets on component mount
+  // Detect available wallets and check for existing connections on component mount
   useEffect(() => {
     const detectWallets = () => {
       try {
@@ -63,7 +64,17 @@ export const useCardanoWallet = () => {
       }
     };
 
+    const initializeWalletService = async () => {
+      try {
+        // Initialize wallet service (checks for existing connections)
+        await walletService.initialize();
+      } catch (error) {
+        console.error('Failed to initialize wallet service:', error);
+      }
+    };
+
     detectWallets();
+    initializeWalletService();
 
     // Re-detect wallets every 2 seconds (in case user installs wallet)
     const interval = setInterval(detectWallets, 2000);
@@ -102,6 +113,11 @@ export const useCardanoWallet = () => {
     if (!isConnected) return;
     
     try {
+      setIsRefreshing(true);
+      setError(null);
+      
+      console.log('Refreshing wallet data...');
+      
       const [newAddresses, newBalance] = await Promise.all([
         walletService.getAddresses(),
         walletService.getBalance()
@@ -109,9 +125,14 @@ export const useCardanoWallet = () => {
       
       setAddresses(newAddresses);
       setBalance(newBalance);
+      
+      console.log('Wallet data refreshed successfully', { newAddresses, newBalance });
+      
     } catch (error) {
       console.error('Refresh failed:', error);
       setError(error.message);
+    } finally {
+      setIsRefreshing(false);
     }
   }, [isConnected]);
 
@@ -119,6 +140,7 @@ export const useCardanoWallet = () => {
     // Connection state
     isConnected,
     isConnecting,
+    isRefreshing,
     walletInfo,
     availableWallets,
     
